@@ -514,5 +514,4 @@ This project is provided as-is for educational and research purposes. Please res
 
 ---
 
-**Built with ❤️ for LLM dataset creation**
 
