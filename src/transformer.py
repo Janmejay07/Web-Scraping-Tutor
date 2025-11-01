@@ -7,7 +7,7 @@ import json
 from typing import Any, Dict, List, Optional
 from pathlib import Path
 
-from utils import logger, load_json, clean_html, ensure_directory
+from utils import log_info, log_warning, log_error, load_json, clean_html, ensure_directory
 
 
 class JiraTransformer:
@@ -115,7 +115,7 @@ class JiraTransformer:
         try:
             issue_key = issue.get('key', '')
             if not issue_key:
-                logger.warning("Issue missing key, skipping")
+                log_warning("Issue missing key, skipping")
                 return None
             
             # Extract basic fields
@@ -164,7 +164,7 @@ class JiraTransformer:
             return cleaned_issue
             
         except Exception as e:
-            logger.error(f"Error transforming issue {issue.get('key', 'unknown')}: {e}")
+            log_error(f"Error transforming issue {issue.get('key', 'unknown')}: {e}")
             return None
     
     def transform_page(self, raw_data: Dict) -> List[Dict]:
@@ -185,7 +185,7 @@ class JiraTransformer:
             if cleaned:
                 cleaned_issues.append(cleaned)
         
-        logger.info(f"Transformed {len(cleaned_issues)}/{len(issues)} issues")
+        log_info(f"Transformed {len(cleaned_issues)}/{len(issues)} issues")
         return cleaned_issues
     
     def process_project(self, project: str) -> int:
@@ -198,23 +198,23 @@ class JiraTransformer:
         Returns:
             Number of issues processed
         """
-        logger.info(f"Processing project: {project}")
+        log_info(f"Processing project: {project}")
         
         # Find all raw files for this project
         raw_files = sorted(Path(self.raw_data_dir).glob(f"{project}_page_*.json"))
         
         if not raw_files:
-            logger.warning(f"No raw files found for {project}")
+            log_warning(f"No raw files found for {project}")
             return 0
         
         all_issues = []
         
         for raw_file in raw_files:
-            logger.info(f"Processing {raw_file.name}")
+            log_info(f"Processing {raw_file.name}")
             raw_data = load_json(str(raw_file))
             
             if not raw_data:
-                logger.warning(f"Failed to load {raw_file.name}")
+                log_warning(f"Failed to load {raw_file.name}")
                 continue
             
             cleaned_issues = self.transform_page(raw_data)
@@ -225,7 +225,7 @@ class JiraTransformer:
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(all_issues, f, indent=2, ensure_ascii=False)
         
-        logger.info(f"Processed {len(all_issues)} issues for {project}")
+        log_info(f"Processed {len(all_issues)} issues for {project}")
         return len(all_issues)
     
     def process_all(self, projects: List[str]) -> Dict[str, int]:
@@ -245,7 +245,7 @@ class JiraTransformer:
                 count = self.process_project(project)
                 results[project] = count
             except Exception as e:
-                logger.error(f"Error processing {project}: {e}")
+                log_error(f"Error processing {project}: {e}")
                 results[project] = 0
         
         return results
@@ -260,11 +260,11 @@ def main():
         processed_data_dir="data/processed"
     )
     
-    logger.info("Starting data transformation...")
+    log_info("Starting data transformation...")
     results = transformer.process_all(projects)
     
-    logger.info("Transformation completed!")
-    logger.info(f"Results: {results}")
+    log_info("Transformation completed!")
+    log_info(f"Results: {results}")
 
 
 if __name__ == "__main__":

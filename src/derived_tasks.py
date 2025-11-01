@@ -7,7 +7,7 @@ import json
 from typing import Dict, List, Optional
 from pathlib import Path
 
-from utils import logger, load_json, ensure_directory
+from utils import log_info, log_warning, log_error, load_json, ensure_directory
 
 
 class DerivedTaskGenerator:
@@ -163,17 +163,17 @@ class DerivedTaskGenerator:
         Returns:
             List of issues with derived tasks
         """
-        logger.info(f"Generating derived tasks for {project}")
+        log_info(f"Generating derived tasks for {project}")
         
         processed_file = os.path.join(self.processed_data_dir, f"{project}_processed.json")
         
         if not os.path.exists(processed_file):
-            logger.warning(f"Processed file not found: {processed_file}")
+            log_warning(f"Processed file not found: {processed_file}")
             return []
         
         issues = load_json(processed_file)
         if not issues:
-            logger.warning(f"No issues loaded from {processed_file}")
+            log_warning(f"No issues loaded from {processed_file}")
             return []
         
         issues_with_tasks = []
@@ -183,9 +183,9 @@ class DerivedTaskGenerator:
                 issue_with_tasks = self.add_derived_tasks(issue.copy())
                 issues_with_tasks.append(issue_with_tasks)
             except Exception as e:
-                logger.error(f"Error generating tasks for {issue.get('issue_key', 'unknown')}: {e}")
+                log_error(f"Error generating tasks for {issue.get('issue_key', 'unknown')}: {e}")
         
-        logger.info(f"Generated tasks for {len(issues_with_tasks)} issues in {project}")
+        log_info(f"Generated tasks for {len(issues_with_tasks)} issues in {project}")
         return issues_with_tasks
     
     def save_jsonl(self, issues: List[Dict], filename: str) -> None:
@@ -203,7 +203,7 @@ class DerivedTaskGenerator:
                 json_line = json.dumps(issue, ensure_ascii=False)
                 f.write(json_line + '\n')
         
-        logger.info(f"Saved {len(issues)} issues to {filepath}")
+        log_info(f"Saved {len(issues)} issues to {filepath}")
     
     def generate_all(self, projects: List[str], output_filename: str = "final_dataset.jsonl") -> int:
         """
@@ -216,7 +216,7 @@ class DerivedTaskGenerator:
         Returns:
             Total number of issues in final dataset
         """
-        logger.info("Starting derived task generation...")
+        log_info("Starting derived task generation...")
         
         all_issues = []
         
@@ -224,14 +224,14 @@ class DerivedTaskGenerator:
             try:
                 issues = self.process_project(project)
                 all_issues.extend(issues)
-                logger.info(f"Processed {len(issues)} issues from {project}")
+                log_info(f"Processed {len(issues)} issues from {project}")
             except Exception as e:
-                logger.error(f"Error processing {project}: {e}")
+                log_error(f"Error processing {project}: {e}")
         
         # Save combined dataset
         self.save_jsonl(all_issues, output_filename)
         
-        logger.info(f"Generated final dataset with {len(all_issues)} issues")
+        log_info(f"Generated final dataset with {len(all_issues)} issues")
         return len(all_issues)
 
 
@@ -244,10 +244,10 @@ def main():
         output_dir="output"
     )
     
-    logger.info("Starting derived task generation...")
+    log_info("Starting derived task generation...")
     total_issues = generator.generate_all(projects)
     
-    logger.info(f"Completed! Generated dataset with {total_issues} issues")
+    log_info(f"Completed! Generated dataset with {total_issues} issues")
 
 
 if __name__ == "__main__":

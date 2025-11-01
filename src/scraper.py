@@ -9,7 +9,8 @@ import requests
 from typing import Dict, List, Optional
 
 from utils import (
-    logger, save_json, load_json, ensure_directory,
+    log_info, log_warning, log_error, log_debug,
+    save_json, load_json, ensure_directory,
     save_checkpoint, load_checkpoint, retry_with_backoff
 )
 
@@ -71,19 +72,19 @@ class JiraScraper:
             response = self.session.get(url, params=params, timeout=(30, 30))
         except requests.exceptions.Timeout as e:
             # Handle timeout errors
-            logger.error(f"Request timeout for {url}: {e}")
+            log_error(f"Request timeout for {url}: {e}")
             # Wrap timeout as a retryable error (status_code 0 indicates timeout)
             timeout_error = HTTPErrorWithCode(0, f"Request timeout: {str(e)}")
             raise timeout_error
         except requests.exceptions.ConnectionError as e:
             # Handle connection errors (network issues, DNS failures, etc.)
-            logger.error(f"Connection error for {url}: {e}")
+            log_error(f"Connection error for {url}: {e}")
             # Wrap connection error as retryable (status_code 0 indicates connection error)
             conn_error = HTTPErrorWithCode(0, f"Connection error: {str(e)}")
             raise conn_error
         except requests.exceptions.RequestException as e:
             # Handle other request-related errors
-            logger.error(f"Request error for {url}: {e}")
+            log_error(f"Request error for {url}: {e}")
             req_error = HTTPErrorWithCode(0, f"Request error: {str(e)}")
             raise req_error
         
@@ -93,7 +94,7 @@ class JiraScraper:
         
         # Validate response is not empty
         if not response.content:
-            logger.warning(f"Empty response received from {url}")
+            log_warning(f"Empty response received from {url}")
             empty_error = HTTPErrorWithCode(response.status_code, "Empty response received")
             raise empty_error
         
@@ -102,14 +103,14 @@ class JiraScraper:
             data = response.json()
         except ValueError as e:
             # JSONDecodeError inherits from ValueError
-            logger.error(f"Malformed JSON in response from {url}: {e}")
-            logger.debug(f"Response content (first 500 chars): {response.text[:500]}")
+            log_error(f"Malformed JSON in response from {url}: {e}")
+            log_debug(f"Response content (first 500 chars): {response.text[:500]}")
             json_error = HTTPErrorWithCode(response.status_code, f"Malformed JSON: {str(e)}")
             raise json_error
         
         # Validate response structure (should have 'issues' or 'total' key for search API)
         if not isinstance(data, dict):
-            logger.warning(f"Unexpected response type from {url}: expected dict, got {type(data)}")
+            log_warning(f"Unexpected response type from {url}: expected dict, got {type(data)}")
             type_error = HTTPErrorWithCode(response.status_code, f"Unexpected response type: {type(data)}")
             raise type_error
         
@@ -140,18 +141,18 @@ class JiraScraper:
         }
         
         try:
-            logger.info(f"Fetching {project} issues: startAt={start_at}, maxResults={self.max_results}")
+            log_info(f"Fetching {project} issues: startAt={start_at}, maxResults={self.max_results}")
             data = self._make_request(url, params)
             
             # Validate response has expected structure
             if 'issues' not in data:
-                logger.warning(f"Response missing 'issues' field for {project} at startAt={start_at}")
+                log_warning(f"Response missing 'issues' field for {project} at startAt={start_at}")
                 # Check if it's an empty result (sometimes API returns different structure)
                 if 'total' in data and data.get('total') == 0:
-                    logger.info(f"No issues found for {project} at startAt={start_at}")
+                    log_info(f"No issues found for {project} at startAt={start_at}")
                     return data
                 else:
-                    logger.error(f"Unexpected response structure for {project}: {list(data.keys())}")
+                    log_error(f"Unexpected response structure for {project}: {list(data.keys())}")
                     return None
             
             total = data.get('total', 0)
@@ -159,21 +160,21 @@ class JiraScraper:
             
             # Validate issues is a list
             if not isinstance(issues, list):
-                logger.error(f"Expected 'issues' to be a list, got {type(issues)}")
+                log_error(f"Expected 'issues' to be a list, got {type(issues)}")
                 return None
             
-            logger.info(f"Fetched {len(issues)} issues for {project} (total: {total})")
+            log_info(f"Fetched {len(issues)} issues for {project} (total: {total})")
             
             return data
         except Exception as e:
-            logger.error(f"Error fetching {project} page {start_at}: {e}")
+            log_error(f"Error fetching {project} page {start_at}: {e}")
             return None
     
     def save_raw_response(self, project: str, page: int, data: Dict) -> None:
         """Save raw API response to disk."""
         filename = os.path.join(self.data_dir, f"{project}_page_{page}.json")
         save_json(data, filename)
-        logger.debug(f"Saved raw response to {filename}")
+        log_debug(f"Saved raw response to {filename}")
     
     def scrape_project(self, project: str, resume: bool = True) -> int:
         """
@@ -186,7 +187,7 @@ class JiraScraper:
         Returns:
             Number of pages scraped
         """
-        logger.info(f"Starting scrape for project: {project}")
+        log_info(f"Starting scrape for project: {project}")
         
         # Load checkpoint if resuming
         start_page = 0
@@ -196,7 +197,7 @@ class JiraScraper:
         # Fetch first page to get total count
         first_page_data = self.fetch_issues_page(project, start_at=start_page * self.max_results)
         if not first_page_data:
-            logger.error(f"Failed to fetch initial page for {project}")
+            log_error(f"Failed to fetch initial page for {project}")
             return 0
         
         total_issues = first_page_data.get('total', 0)
@@ -204,10 +205,10 @@ class JiraScraper:
         # Apply limit if specified
         if self.max_issues_per_project and total_issues > self.max_issues_per_project:
             total_issues = self.max_issues_per_project
-            logger.info(f"{project}: Limiting to {total_issues} issues (total available: {first_page_data.get('total', 0)})")
+            log_info(f"{project}: Limiting to {total_issues} issues (total available: {first_page_data.get('total', 0)})")
         
         total_pages = (total_issues + self.max_results - 1) // self.max_results
-        logger.info(f"{project}: Fetching {total_issues} issues, {total_pages} pages")
+        log_info(f"{project}: Fetching {total_issues} issues, {total_pages} pages")
         
         # Save first page
         self.save_raw_response(project, start_page, first_page_data)
@@ -228,10 +229,10 @@ class JiraScraper:
                 # Small delay to be respectful to API
                 time.sleep(0.5)
             else:
-                logger.error(f"Failed to fetch page {page} for {project}, stopping")
+                log_error(f"Failed to fetch page {page} for {project}, stopping")
                 break
         
-        logger.info(f"Completed scraping {project}: {pages_scraped} pages")
+        log_info(f"Completed scraping {project}: {pages_scraped} pages")
         return pages_scraped
     
     def scrape_all(self, resume: bool = True) -> Dict[str, int]:
@@ -254,10 +255,10 @@ class JiraScraper:
                 # Delay between projects to be respectful
                 time.sleep(1)
             except KeyboardInterrupt:
-                logger.info("Scraping interrupted by user")
+                log_info("Scraping interrupted by user")
                 break
             except Exception as e:
-                logger.error(f"Error scraping {project}: {e}")
+                log_error(f"Error scraping {project}: {e}")
                 results[project] = 0
         
         return results
@@ -274,11 +275,11 @@ def main():
         checkpoint_file="checkpoints/state.json"
     )
     
-    logger.info("Starting Jira scraper...")
+    log_info("Starting Jira scraper...")
     results = scraper.scrape_all(resume=True)
     
-    logger.info("Scraping completed!")
-    logger.info(f"Results: {results}")
+    log_info("Scraping completed!")
+    log_info(f"Results: {results}")
 
 
 if __name__ == "__main__":

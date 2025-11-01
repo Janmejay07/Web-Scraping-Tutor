@@ -1,34 +1,30 @@
 """
-Utility functions for retry logic, logging, file management, and checkpoint handling.
+Utility functions for retry logic, messaging, file management, and checkpoint handling.
 """
 
 import json
-import logging
 import os
 import time
 from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 from functools import wraps
 
-# Setup logging
-def setup_logging(log_dir: str = "logs"):
-    """Setup logging configuration and return logger instance."""
-    Path(log_dir).mkdir(parents=True, exist_ok=True)
-    
-    log_file = os.path.join(log_dir, f"scraper_{int(time.time())}.log")
-    
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[
-            logging.FileHandler(log_file),
-            logging.StreamHandler()
-        ]
-    )
-    
-    return logging.getLogger(__name__)
+# Simple print-based messaging (no logging)
+def log_info(message: str):
+    """Print info message."""
+    print(f"[INFO] {message}")
 
-logger = setup_logging()
+def log_warning(message: str):
+    """Print warning message."""
+    print(f"[WARNING] {message}")
+
+def log_error(message: str):
+    """Print error message."""
+    print(f"[ERROR] {message}")
+
+def log_debug(message: str):
+    """Print debug message (no-op in production)."""
+    pass
 
 
 def ensure_directory(path: str) -> None:
@@ -51,7 +47,7 @@ def load_json(filepath: str) -> Optional[Dict]:
         with open(filepath, 'r', encoding='utf-8') as f:
             return json.load(f)
     except json.JSONDecodeError as e:
-        logger.error(f"Error loading JSON from {filepath}: {e}")
+        log_error(f"Error loading JSON from {filepath}: {e}")
         return None
 
 
@@ -67,7 +63,7 @@ def save_checkpoint(project: str, last_page: int, checkpoint_file: str = "checkp
     state[project]["last_updated"] = time.time()
     
     save_json(state, checkpoint_file)
-    logger.info(f"Checkpoint saved: {project} at page {last_page}")
+    log_info(f"Checkpoint saved: {project} at page {last_page}")
 
 
 def load_checkpoint(project: str, checkpoint_file: str = "checkpoints/state.json") -> int:
@@ -75,7 +71,7 @@ def load_checkpoint(project: str, checkpoint_file: str = "checkpoints/state.json
     state = load_json(checkpoint_file)
     if state and project in state:
         last_page = state[project].get("last_fetched_page", 0)
-        logger.info(f"Resuming {project} from page {last_page}")
+        log_info(f"Resuming {project} from page {last_page}")
         return last_page
     return 0
 
@@ -113,39 +109,39 @@ def retry_with_backoff(
                         status_code = e.status_code
                         
                         if status_code not in retryable_errors:
-                            logger.error(f"Non-retryable error {status_code}: {e}")
+                            log_error(f"Non-retryable error {status_code}: {e}")
                             raise
                         
                         if status_code == 429:
                             # Rate limit: wait for max_delay
                             wait_time = max_delay
-                            logger.warning(f"Rate limited (429). Waiting {wait_time}s before retry...")
+                            log_warning(f"Rate limited (429). Waiting {wait_time}s before retry...")
                         elif status_code == 0:
                             # Connection error or timeout: exponential backoff
                             wait_time = min(
                                 initial_delay * (exponential_base ** attempt),
                                 max_delay
                             )
-                            logger.warning(f"Connection/timeout error on attempt {attempt + 1}/{max_retries + 1}. Retrying in {wait_time}s...")
+                            log_warning(f"Connection/timeout error on attempt {attempt + 1}/{max_retries + 1}. Retrying in {wait_time}s...")
                         else:
                             # Other 5xx errors: exponential backoff
                             wait_time = min(
                                 initial_delay * (exponential_base ** attempt),
                                 max_delay
                             )
-                            logger.warning(f"Error {status_code} on attempt {attempt + 1}/{max_retries + 1}. Retrying in {wait_time}s...")
+                            log_warning(f"Error {status_code} on attempt {attempt + 1}/{max_retries + 1}. Retrying in {wait_time}s...")
                     else:
                         # Unknown error: exponential backoff
                         wait_time = min(
                             initial_delay * (exponential_base ** attempt),
                             max_delay
                         )
-                        logger.warning(f"Error on attempt {attempt + 1}/{max_retries + 1}: {e}. Retrying in {wait_time}s...")
+                        log_warning(f"Error on attempt {attempt + 1}/{max_retries + 1}: {e}. Retrying in {wait_time}s...")
                     
                     if attempt < max_retries:
                         time.sleep(wait_time)
                     else:
-                        logger.error(f"Max retries exceeded for {func.__name__}")
+                        log_error(f"Max retries exceeded for {func.__name__}")
                         raise last_exception
             
             return None

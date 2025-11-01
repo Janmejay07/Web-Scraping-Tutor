@@ -39,14 +39,12 @@ data/raw/*.json
 data/processed/*.json
 output/*.jsonl
 checkpoints/state.json
-logs/*.log
 
 # Keep directory structure but ignore content
 !data/raw/.gitkeep
 !data/processed/.gitkeep
 !output/.gitkeep
 !checkpoints/.gitkeep
-!logs/.gitkeep
 
 # Test files
 test_*.py

@@ -10,7 +10,7 @@ from pathlib import Path
 # Add src directory to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
-from utils import logger
+from utils import log_info, log_error
 from scraper import JiraScraper
 from transformer import JiraTransformer
 from derived_tasks import DerivedTaskGenerator
@@ -29,20 +29,20 @@ def main(max_issues_per_project=None, test_mode=False):
     # Test mode: fetch limited issues
     if test_mode:
         max_issues_per_project = 100
-        logger.info("TEST MODE: Fetching only 100 issues per project")
+        log_info("TEST MODE: Fetching only 100 issues per project")
     
-    logger.info("=" * 60)
-    logger.info("Apache Jira Scraper & LLM Dataset Pipeline")
-    logger.info("=" * 60)
+    log_info("=" * 60)
+    log_info("Apache Jira Scraper & LLM Dataset Pipeline")
+    log_info("=" * 60)
     
     # Step 1: Scrape
-    logger.info("\n[Step 1/3] Starting data scraping...")
+    log_info("\n[Step 1/3] Starting data scraping...")
     if max_issues_per_project:
-        logger.info(f"LIMITED MODE: Fetching maximum {max_issues_per_project} issues per project")
+        log_info(f"LIMITED MODE: Fetching maximum {max_issues_per_project} issues per project")
     else:
-        logger.info("FULL MODE: Fetching ALL issues from all projects (this may take hours)")
-        logger.info("⚠️  WARNING: This will fetch tens of thousands of issues!")
-        logger.info("⚠️  Use --limit N or --test to limit the number of issues")
+        log_info("FULL MODE: Fetching ALL issues from all projects (this may take hours)")
+        log_info("⚠️  WARNING: This will fetch tens of thousands of issues!")
+        log_info("⚠️  Use --limit N or --test to limit the number of issues")
     
     scraper = JiraScraper(
         projects=projects,
@@ -52,30 +52,30 @@ def main(max_issues_per_project=None, test_mode=False):
         max_issues_per_project=max_issues_per_project
     )
     scrape_results = scraper.scrape_all(resume=True)
-    logger.info(f"Scraping completed: {scrape_results}")
+    log_info(f"Scraping completed: {scrape_results}")
     
     # Step 2: Transform
-    logger.info("\n[Step 2/3] Starting data transformation...")
+    log_info("\n[Step 2/3] Starting data transformation...")
     transformer = JiraTransformer(
         raw_data_dir="data/raw",
         processed_data_dir="data/processed"
     )
     transform_results = transformer.process_all(projects)
-    logger.info(f"Transformation completed: {transform_results}")
+    log_info(f"Transformation completed: {transform_results}")
     
     # Step 3: Generate Derived Tasks
-    logger.info("\n[Step 3/3] Starting derived task generation...")
+    log_info("\n[Step 3/3] Starting derived task generation...")
     generator = DerivedTaskGenerator(
         processed_data_dir="data/processed",
         output_dir="output"
     )
     total_issues = generator.generate_all(projects, output_filename="final_dataset.jsonl")
     
-    logger.info("\n" + "=" * 60)
-    logger.info("Pipeline completed successfully!")
-    logger.info(f"Total issues in final dataset: {total_issues}")
-    logger.info(f"Output file: output/final_dataset.jsonl")
-    logger.info("=" * 60)
+    log_info("\n" + "=" * 60)
+    log_info("Pipeline completed successfully!")
+    log_info(f"Total issues in final dataset: {total_issues}")
+    log_info(f"Output file: output/final_dataset.jsonl")
+    log_info("=" * 60)
 
 
 if __name__ == "__main__":
@@ -110,10 +110,10 @@ Examples:
             test_mode=args.test
         )
     except KeyboardInterrupt:
-        logger.info("\nPipeline interrupted by user. Progress saved in checkpoints.")
+        log_info("\nPipeline interrupted by user. Progress saved in checkpoints.")
         sys.exit(1)
     except Exception as e:
-        logger.error(f"Pipeline failed with error: {e}", exc_info=True)
+        log_error(f"Pipeline failed with error: {e}", exc_info=True)
         sys.exit(1)
 
 
